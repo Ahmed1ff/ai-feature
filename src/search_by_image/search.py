@@ -3,28 +3,21 @@ import shutil
 import logging
 import asyncio
 from pathlib import Path
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from DeepImageSearch import Load_Data, Search_Setup
-from fastapi import HTTPException
-from contextlib import asynccontextmanager
 import builtins
-
-import builtins
-builtins.input = lambda *args, **kwargs: "yes"
-
 from src.search_by_image.image_utils import fetch_image_urls, download_images
 
-# Set working directory to current file's directory
-os.chdir(Path(__file__).resolve().parent)
+# Override built-in input to auto-confirm
+builtins.input = lambda *args, **kwargs: "yes"
 
-# Fix for some parallel processing issues with certain libraries
+# Set working directory
+os.chdir(Path(__file__).resolve().parent)
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 BASE_DIR = Path(__file__).resolve().parent
 IMAGE_DIR = BASE_DIR / "data"
 UPLOAD_FOLDER = BASE_DIR / "uploads"
-
-# Create necessary folders
 Path(IMAGE_DIR).mkdir(parents=True, exist_ok=True)
 Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True)
 
@@ -34,43 +27,46 @@ logger = logging.getLogger(__name__)
 search_engine = None
 
 async def update_index_with_new_images():
-    image_data = await fetch_image_urls()  
-    await download_images(image_data)  
-    image_list = Load_Data().from_folder([IMAGE_DIR])  
-    search_engine.run_index()  
+    image_data = await fetch_image_urls()
+    await download_images(image_data)
+    image_list = Load_Data().from_folder([IMAGE_DIR])
+    if search_engine:
+        search_engine.run_index()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+async def initialize_search_engine():
     global search_engine
+
+    # Delete existing index if it exists
     if os.path.exists('.deep_image_search'):
         shutil.rmtree('.deep_image_search')
 
-    # Fetch and download images during startup
-    image_data = await fetch_image_urls()
-    await download_images(image_data)
-    
-    # Load and index the images
-    image_list = Load_Data().from_folder([IMAGE_DIR])
-    logger.info(f"Total images indexed: {len(image_list)}")
+    try:
+        logger.info("Fetching image URLs from DB...")
+        image_data = await fetch_image_urls()
+        await download_images(image_data)
 
-    if not image_list:
-        logger.warning("No images found to index. Skipping search engine initialization.")
-        yield
-        return
+        image_list = Load_Data().from_folder([IMAGE_DIR])
+        logger.info(f"Total images indexed: {len(image_list)}")
 
-    search_engine = Search_Setup(image_list=image_list)
-    search_engine.run_index()
+        if not image_list:
+            logger.warning("No images found to index.")
+            return
 
-    # Start background task to update index with new images
-    asyncio.create_task(update_index_with_new_images())
+        search_engine = Search_Setup(image_list=image_list)
+        search_engine.run_index()
+        logger.info("Search engine initialized.")
 
-    # Yield to indicate that the startup process is complete
-    yield
-    
-    # Shutdown tasks (if needed)
-    logger.info("Shutting down the application")
-# Create the FastAPI app with the lifespan context manager
-app = FastAPI(lifespan=lifespan)
+        asyncio.create_task(update_index_with_new_images())
+
+    except Exception as e:
+        logger.error(f"Error initializing search engine: {e}")
+
+# Create the FastAPI app
+app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(initialize_search_engine())
 
 @app.get("/")
 def home():
@@ -89,7 +85,9 @@ async def search_by_image(file: UploadFile = File(...), top_n: int = 5):
             detail="Search engine not initialized. No data available for search."
         )
 
-    search_results = search_engine.get_similar_images(image_path=file_location, number_of_images=top_n)
+    search_results = search_engine.get_similar_images(
+        image_path=file_location, number_of_images=top_n
+    )
     meal_ids = []
     for path in search_results.values():
         filename = os.path.basename(path)
@@ -101,4 +99,3 @@ async def search_by_image(file: UploadFile = File(...), top_n: int = 5):
         "query_image": file_location,
         "similar_meal_ids": meal_ids
     }
-# uvicorn src.search_by_image.search:app --reload

@@ -2,15 +2,14 @@ import os
 import logging
 import aiohttp
 import datetime
-import aiohttp
 import asyncio
 from pathlib import Path
 from src.db.mongo import get_database
 
 BASE_DIR = Path(__file__).resolve().parent  # src/search-by-image
 IMAGE_DIR = BASE_DIR / "data"
+os.makedirs(IMAGE_DIR, exist_ok=True)
 
-Path(IMAGE_DIR).mkdir(parents=True, exist_ok=True)
 logger = logging.getLogger(__name__)
 db = get_database()
 meals_collection = db["meals"]
@@ -23,7 +22,7 @@ async def fetch_image_urls():
     projection = {"_id": 1, "images": 1}
     urls = []
 
-    async for doc in meals_collection.find(query, projection):
+    async for doc in meals_collection.find(query, projection).limit(50):  # Limit added
         for img in doc.get("images", []):
             url = img.get("secure_url")
             if url:
@@ -43,7 +42,8 @@ async def download_image(session, url, filename):
     return False
 
 async def download_images(image_data):
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=30)  # Timeout added
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         tasks = []
         for meal_id, url in image_data:
             filename = get_image_filename(meal_id)
