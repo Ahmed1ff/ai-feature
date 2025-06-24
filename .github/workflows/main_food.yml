@@ -30,12 +30,21 @@ jobs:
           source venv/bin/activate
       
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --no-cache-dir
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
+      - name: Clean up temporary files
+        run: |
+          rm -rf venv/
+          find . -type d -name "__pycache__" -exec rm -rf {} +
+          pip cache purge
+
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+        run: |
+          zip -r release.zip ./* -x "venv/*" "*.git*" "__pycache__/*"  # Exclude unnecessary files
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
@@ -70,10 +79,13 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_BEF9210E1092430EA4263546A4A3657A }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_54DFBDF05B3046669B4E079991410979 }}
 
+      - name: Add delay
+        run: sleep 60
+        shell: bash
+
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
           app-name: 'Food'
           slot-name: 'Production'
-          
