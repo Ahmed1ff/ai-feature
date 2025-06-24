@@ -1,24 +1,8 @@
-# Python Bytecode
-__pycache__/
-*.pyc
-*.pyo
 
-# Environment variables
+
 .env
-
-# Logs
-logs/
-*.log
-
-# Virtual environment
-venv/
-env/
-
-# Configuration files for IDEs
-.vscode/
 
 src/search_by_image/data
 src/search_by_image/metadata-files
 src/search_by_image/uploads
 
-.venv/
