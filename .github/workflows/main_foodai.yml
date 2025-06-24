@@ -46,6 +46,9 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
+      - name: Wait to avoid deployment conflict
+        run: sleep 20
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
