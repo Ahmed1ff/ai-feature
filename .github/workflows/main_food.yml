@@ -33,8 +33,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt --no-cache-dir
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Clean up temporary files
         run: |
@@ -44,7 +42,7 @@ jobs:
 
       - name: Zip artifact for deployment
         run: |
-          zip -r release.zip ./* -r -x "venv/*" "*.git*" "__pycache__/*"  # Exclude unnecessary files
+          zip -r release.zip ./* -r -x "venv/*" "*.git*" "__pycache__/*"
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
@@ -59,8 +57,7 @@ jobs:
     needs: build
     
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      contents: read # Required for checkout
 
     steps:
       - name: Download artifact from build job
@@ -71,21 +68,10 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_8047A4DF8440475EB6153DB2FFE23390 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_BEF9210E1092430EA4263546A4A3657A }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_54DFBDF05B3046669B4E079991410979 }}
-
-      - name: Add delay
-        run: sleep 60
-        shell: bash
-
-      - name: 'Deploy to Azure Web App'
+      - name: Deploy to Azure Web App using Publish Profile
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
           app-name: 'Food'
-          slot-name: 'Production'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
