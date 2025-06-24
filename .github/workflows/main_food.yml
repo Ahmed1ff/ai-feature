@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python version
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Changed to 3.10 for compatibility
+          python-version: '3.10'
 
       - name: Create and start virtual environment
         run: |
@@ -36,13 +36,13 @@ jobs:
 
       - name: Clean up temporary files
         run: |
-          rm -rf venv/  # Remove virtual env to reduce size
+          rm -rf venv/
           find . -type d -name "__pycache__" -exec rm -rf {} +
-          pip cache purge  # Clear pip cache
+          pip cache purge
 
       - name: Zip artifact for deployment
         run: |
-          zip -r release.zip . -x "venv/*" "*.git*" "__pycache__/*" # Exclude unnecessary files
+          zip -r release.zip . -x "venv/*" "*.git*" "__pycache__/*"
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
@@ -74,9 +74,14 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_71EE2615DBED4B8CB5F25989533CF53D }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F1986B61215B443FA64922DF29457F48 }}
 
+      - name: Add delay
+        run: sleep 30
+        shell: bash
+
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
           app-name: 'Food'
           slot-name: 'Production'
+          package: release.zip
